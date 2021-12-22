@@ -18,7 +18,8 @@
 package io.github.interestinglab.waterdrop.spark.sink
 
 import java.util
-import io.github.interestinglab.waterdrop.common.config.CheckResult
+
+import io.github.interestinglab.waterdrop.common.config.{CheckResult, TypesafeConfigUtils}
 import io.github.interestinglab.waterdrop.config.{Config, ConfigFactory}
 import io.github.interestinglab.waterdrop.spark.SparkEnvironment
 import io.github.interestinglab.waterdrop.spark.batch.SparkBatchSink
@@ -81,9 +82,9 @@ class Doris extends SparkBatchSink with Serializable {
       val dataBase: String = config.getString(Config.DATABASE)
       val tableName: String = config.getString(Config.TABLE_NAME)
       this.apiUrl = s"http://$host/api/$dataBase/$tableName/_stream_load"
-      val httpConfig = extractSubConfig(config,Config.ARGS_PREFIX)
-      if (!httpConfig.isEmpty) {
-        val iterator = httpConfig.entrySet().iterator()
+      if (TypesafeConfigUtils.hasSubConfig(config,Config.ARGS_PREFIX)) {
+        val properties = TypesafeConfigUtils.extractSubConfig(config, Config.ARGS_PREFIX, false)
+        val iterator = properties.entrySet().iterator()
         while (iterator.hasNext) {
           val map = iterator.next()
           val split = map.getKey.split("\\.")
@@ -100,18 +101,5 @@ class Doris extends SparkBatchSink with Serializable {
     if (config.hasPath(Config.BULK_SIZE) && config.getInt(Config.BULK_SIZE) > 0) {
       batch_size = config.getInt(Config.BULK_SIZE)
     }
-  }
-
-  def extractSubConfig(source: Config, prefix: String): Config = {
-    val values: util.Map[String, String] = new util.LinkedHashMap[String, String]
-    import scala.collection.JavaConversions._
-    for (entry <- source.entrySet) {
-      val key: String = entry.getKey
-      val value: String = String.valueOf(entry.getValue.unwrapped)
-      if (key.startsWith(prefix)) {
-        values.put(key, value)
-      }
-    }
-    ConfigFactory.parseMap(values)
   }
 }
