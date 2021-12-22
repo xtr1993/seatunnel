@@ -17,7 +17,9 @@
 
 package io.github.interestinglab.waterdrop.spark.sink
 
+import java.util
 import io.github.interestinglab.waterdrop.common.config.CheckResult
+import io.github.interestinglab.waterdrop.config.{Config, ConfigFactory}
 import io.github.interestinglab.waterdrop.spark.SparkEnvironment
 import io.github.interestinglab.waterdrop.spark.batch.SparkBatchSink
 import org.apache.log4j.Logger
@@ -79,14 +81,16 @@ class Doris extends SparkBatchSink with Serializable {
       val dataBase: String = config.getString(Config.DATABASE)
       val tableName: String = config.getString(Config.TABLE_NAME)
       this.apiUrl = s"http://$host/api/$dataBase/$tableName/_stream_load"
-      val httpConfig = JavaConversions.asScalaSet(config.entrySet()).filter(x => x.getKey.startsWith(Config.ARGS_PREFIX))
-      if (httpConfig.nonEmpty) {
-        httpConfig.foreach(tuple => {
-          val split = tuple.getKey.split(".")
+      val httpConfig = extractSubConfig(config,Config.ARGS_PREFIX)
+      if (!httpConfig.isEmpty) {
+        val iterator = httpConfig.entrySet().iterator()
+        while (iterator.hasNext) {
+          val map = iterator.next()
+          val split = map.getKey.split("\\.")
           if (split.size == 2) {
-            propertiesMap.put(split(1),tuple.getValue.render())
+            propertiesMap.put(split(1),String.valueOf(map.getValue.unwrapped))
           }
-        })
+        }
       }
       new CheckResult(true,Config.CHECK_SUCCESS)
     }
@@ -96,5 +100,18 @@ class Doris extends SparkBatchSink with Serializable {
     if (config.hasPath(Config.BULK_SIZE) && config.getInt(Config.BULK_SIZE) > 0) {
       batch_size = config.getInt(Config.BULK_SIZE)
     }
+  }
+
+  def extractSubConfig(source: Config, prefix: String): Config = {
+    val values: util.Map[String, String] = new util.LinkedHashMap[String, String]
+    import scala.collection.JavaConversions._
+    for (entry <- source.entrySet) {
+      val key: String = entry.getKey
+      val value: String = String.valueOf(entry.getValue.unwrapped)
+      if (key.startsWith(prefix)) {
+        values.put(key, value)
+      }
+    }
+    ConfigFactory.parseMap(values)
   }
 }
