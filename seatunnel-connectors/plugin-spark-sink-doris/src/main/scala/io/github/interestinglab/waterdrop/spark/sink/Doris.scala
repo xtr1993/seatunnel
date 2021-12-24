@@ -44,7 +44,15 @@ class Doris extends SparkBatchSink with Serializable {
     }
     val sparkSession = env.getSparkSession
     import sparkSession.implicits._
-    val dataFrame = data.map(x => x.toString().replaceAll("\\[|\\]", "").replace(",", column_separator))
+    val fields = data.schema.fields
+    val dataFrame = data.map(row => {
+      val builder = new StringBuilder
+      fields.foreach(f => {
+        val filedValue = row.getAs[Any](f.name)
+        builder.append(filedValue).append(column_separator)
+      })
+      builder.substring(0,builder.length - 1)
+    })
     dataFrame.foreachPartition { partition =>
       var count: Int = 0
       val buffer = new ListBuffer[String]
